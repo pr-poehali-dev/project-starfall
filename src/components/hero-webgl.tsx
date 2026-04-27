@@ -1,7 +1,8 @@
 import { Canvas, extend, useFrame } from "@react-three/fiber"
 import { useAspect, useTexture } from "@react-three/drei"
-import { useMemo, useRef, useState, useEffect } from "react"
+import { useMemo, useRef, useState, useEffect, useCallback } from "react"
 import * as THREE from "three"
+import Icon from "@/components/ui/icon"
 
 const TEXTUREMAP = { src: "https://i.postimg.cc/XYwvXN8D/img-4.png" }
 const DEPTHMAP = { src: "https://i.postimg.cc/2SHKQh2q/raw-4.webp" }
@@ -120,6 +121,29 @@ export const Hero3DWebGL = () => {
   const [subtitleVisible, setSubtitleVisible] = useState(false)
   const [delays, setDelays] = useState<number[]>([])
   const [subtitleDelay, setSubtitleDelay] = useState(0)
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFile = useCallback((file: File) => {
+    if (file && file.type.startsWith("image/")) {
+      setUploadedFile(file)
+    }
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const file = e.dataTransfer.files[0]
+    if (file) handleFile(file)
+  }, [handleFile])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback(() => setIsDragging(false), [])
 
   useEffect(() => {
     setDelays(titleWords.map(() => Math.random() * 0.07))
@@ -172,6 +196,64 @@ export const Hero3DWebGL = () => {
           >
             {subtitle}
           </div>
+        </div>
+
+        {/* Upload block */}
+        <div className="pointer-events-auto mt-10 w-full max-w-lg mx-auto normal-case">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+          />
+
+          {uploadedFile ? (
+            <div className="flex items-center gap-4 bg-white/10 border border-red-500/60 backdrop-blur-sm rounded-2xl px-6 py-4">
+              <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                <Icon name="ImageIcon" size={20} className="text-red-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-semibold text-sm truncate">{uploadedFile.name}</p>
+                <p className="text-gray-400 text-xs mt-0.5">Фото загружено — готово к конвертации</p>
+              </div>
+              <button
+                onClick={() => { setUploadedFile(null); if (fileInputRef.current) fileInputRef.current.value = "" }}
+                className="text-gray-400 hover:text-white transition-colors flex-shrink-0"
+              >
+                <Icon name="X" size={18} />
+              </button>
+              <button
+                onClick={() => {}}
+                className="bg-red-500 hover:bg-red-600 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors flex-shrink-0 flex items-center gap-2"
+              >
+                <Icon name="Download" size={16} />
+                В STL
+              </button>
+            </div>
+          ) : (
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              className={`cursor-pointer border-2 border-dashed rounded-2xl px-8 py-8 text-center transition-all duration-200 backdrop-blur-sm
+                ${isDragging
+                  ? "border-red-400 bg-red-500/20 scale-[1.02]"
+                  : "border-white/30 bg-white/5 hover:border-red-500/60 hover:bg-white/10"
+                }`}
+            >
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
+                  <Icon name="Upload" size={24} className="text-red-400" />
+                </div>
+                <div>
+                  <p className="text-white font-semibold text-base">Загрузите фото объекта</p>
+                  <p className="text-gray-400 text-sm mt-1">Перетащите или нажмите для выбора · JPG, PNG, WebP</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
