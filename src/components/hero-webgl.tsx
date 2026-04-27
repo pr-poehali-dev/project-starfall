@@ -3,6 +3,7 @@ import { useAspect, useTexture } from "@react-three/drei"
 import { useMemo, useRef, useState, useEffect, useCallback } from "react"
 import * as THREE from "three"
 import Icon from "@/components/ui/icon"
+import { STLViewer } from "@/components/stl-viewer"
 
 const TEXTUREMAP = { src: "https://i.postimg.cc/XYwvXN8D/img-4.png" }
 const DEPTHMAP = { src: "https://i.postimg.cc/2SHKQh2q/raw-4.webp" }
