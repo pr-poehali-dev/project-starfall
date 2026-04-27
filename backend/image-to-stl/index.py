@@ -38,9 +38,10 @@ def handler(event: dict, context) -> dict:
     if ',' in image_data:
         image_data = image_data.split(',', 1)[1]
 
-    api_key = os.environ.get('MESHY_API_KEY')
+    api_key = os.environ.get('MESHY_API_KEY', '').strip()
     if not api_key:
         return {'statusCode': 500, 'headers': HEADERS, 'body': json.dumps({'error': 'MESHY_API_KEY not configured'})}
+    print(f"[DEBUG] API key length={len(api_key)}, prefix={api_key[:6]}")
 
     polycount = int(body.get('polycount', 30000))
     topology = body.get('topology', 'quad')
@@ -64,6 +65,7 @@ def handler(event: dict, context) -> dict:
         timeout=30,
     )
 
+    print(f"[DEBUG] Meshy response status={resp.status_code}, body={resp.text[:300]}")
     if resp.status_code not in (200, 201, 202):
         return {
             'statusCode': resp.status_code,
