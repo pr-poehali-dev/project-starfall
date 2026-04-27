@@ -3,7 +3,7 @@ import { useAspect, useTexture } from "@react-three/drei"
 import { useMemo, useRef, useState, useEffect, useCallback } from "react"
 import * as THREE from "three"
 import Icon from "@/components/ui/icon"
-import { STLViewer } from "@/components/stl-viewer"
+import { STLViewer, type ConvertSettings } from "@/components/stl-viewer"
 
 const TEXTUREMAP = { src: "https://i.postimg.cc/XYwvXN8D/img-4.png" }
 const DEPTHMAP = { src: "https://i.postimg.cc/2SHKQh2q/raw-4.webp" }
@@ -128,6 +128,12 @@ export const Hero3DWebGL = () => {
   const [progress, setProgress] = useState(0)
   const [stlUrl, setStlUrl] = useState<string | null>(null)
   const [convertError, setConvertError] = useState<string | null>(null)
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [convertSettings, setConvertSettings] = useState<ConvertSettings>({
+    polycount: 30000,
+    topology: "quad",
+    enablePbr: false,
+  })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -157,21 +163,25 @@ export const Hero3DWebGL = () => {
 
   const handleDragLeave = useCallback(() => setIsDragging(false), [])
 
-  const handleConvert = useCallback(async () => {
-    if (!uploadedFile) return
+  const runConvert = useCallback(async (file: File, settings: ConvertSettings) => {
     setConverting(true)
     setConvertError(null)
     setStlUrl(null)
     setProgress(0)
+    if (pollRef.current) clearInterval(pollRef.current)
 
     const reader = new FileReader()
     reader.onload = async (e) => {
       const dataUrl = e.target?.result as string
-
       const res = await fetch(IMAGE_TO_STL_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: dataUrl }),
+        body: JSON.stringify({
+          image: dataUrl,
+          polycount: settings.polycount,
+          topology: settings.topology,
+          enable_pbr: settings.enablePbr,
+        }),
       })
       const data = await res.json()
 
@@ -185,9 +195,7 @@ export const Hero3DWebGL = () => {
       pollRef.current = setInterval(async () => {
         const statusRes = await fetch(`${STL_STATUS_URL}?task_id=${taskId}`)
         const statusData = await statusRes.json()
-
         if (statusData.progress) setProgress(statusData.progress)
-
         if (statusData.status === "succeeded" && statusData.stl_url) {
           clearInterval(pollRef.current!)
           setStlUrl(statusData.stl_url)
@@ -200,8 +208,17 @@ export const Hero3DWebGL = () => {
         }
       }, 3000)
     }
-    reader.readAsDataURL(uploadedFile)
-  }, [uploadedFile])
+    reader.readAsDataURL(file)
+  }, [])
+
+  const handleConvert = useCallback(() => {
+    if (uploadedFile) runConvert(uploadedFile, convertSettings)
+  }, [uploadedFile, convertSettings, runConvert])
+
+  const handleRegenerate = useCallback((newSettings: ConvertSettings) => {
+    setConvertSettings(newSettings)
+    if (uploadedFile) runConvert(uploadedFile, newSettings)
+  }, [uploadedFile, runConvert])
 
   useEffect(() => {
     setDelays(titleWords.map(() => Math.random() * 0.07))
@@ -287,14 +304,23 @@ export const Hero3DWebGL = () => {
                   </button>
                 )}
                 {stlUrl ? (
-                  <a
-                    href={stlUrl}
-                    download="model.stl"
-                    className="bg-green-500 hover:bg-green-600 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors flex-shrink-0 flex items-center gap-2"
-                  >
-                    <Icon name="Download" size={16} />
-                    Скачать
-                  </a>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => setViewerOpen(true)}
+                      className="bg-white/15 hover:bg-white/25 text-white text-sm font-bold px-3 py-2 rounded-xl transition-colors flex items-center gap-1.5"
+                    >
+                      <Icon name="Eye" size={15} />
+                      Просмотр
+                    </button>
+                    <a
+                      href={stlUrl}
+                      download="model.stl"
+                      className="bg-green-500 hover:bg-green-600 text-white text-sm font-bold px-3 py-2 rounded-xl transition-colors flex items-center gap-1.5"
+                    >
+                      <Icon name="Download" size={15} />
+                      STL
+                    </a>
+                  </div>
                 ) : (
                   <button
                     onClick={handleConvert}
