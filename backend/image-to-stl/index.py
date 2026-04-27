@@ -42,12 +42,16 @@ def handler(event: dict, context) -> dict:
     if not api_key:
         return {'statusCode': 500, 'headers': HEADERS, 'body': json.dumps({'error': 'MESHY_API_KEY not configured'})}
 
+    polycount = int(body.get('polycount', 30000))
+    topology = body.get('topology', 'quad')
+    enable_pbr = bool(body.get('enable_pbr', False))
+
     payload = {
         'image_url': f'data:image/jpeg;base64,{image_data}',
-        'enable_pbr': False,
+        'enable_pbr': enable_pbr,
         'should_remesh': True,
-        'topology': 'quad',
-        'target_polycount': 30000,
+        'topology': topology,
+        'target_polycount': polycount,
     }
 
     resp = requests.post(

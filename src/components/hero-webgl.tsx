@@ -379,6 +379,15 @@ export const Hero3DWebGL = () => {
       >
         <Scene />
       </Canvas>
+
+      {viewerOpen && stlUrl && (
+        <STLViewer
+          url={stlUrl}
+          onClose={() => setViewerOpen(false)}
+          onRegenerate={handleRegenerate}
+          convertSettings={convertSettings}
+        />
+      )}
     </div>
   )
 }
