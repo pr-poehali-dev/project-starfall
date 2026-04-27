@@ -123,11 +123,22 @@ export const Hero3DWebGL = () => {
   const [subtitleDelay, setSubtitleDelay] = useState(0)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [converting, setConverting] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [stlUrl, setStlUrl] = useState<string | null>(null)
+  const [convertError, setConvertError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const IMAGE_TO_STL_URL = "https://functions.poehali.dev/c811f56d-4d43-4d8d-9864-222b81d18350"
+  const STL_STATUS_URL = "https://functions.poehali.dev/168a548d-9aac-441c-9fa7-f7e51c194b89"
 
   const handleFile = useCallback((file: File) => {
     if (file && file.type.startsWith("image/")) {
       setUploadedFile(file)
+      setStlUrl(null)
+      setConvertError(null)
+      setProgress(0)
     }
   }, [])
 
@@ -144,6 +155,52 @@ export const Hero3DWebGL = () => {
   }, [])
 
   const handleDragLeave = useCallback(() => setIsDragging(false), [])
+
+  const handleConvert = useCallback(async () => {
+    if (!uploadedFile) return
+    setConverting(true)
+    setConvertError(null)
+    setStlUrl(null)
+    setProgress(0)
+
+    const reader = new FileReader()
+    reader.onload = async (e) => {
+      const dataUrl = e.target?.result as string
+
+      const res = await fetch(IMAGE_TO_STL_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: dataUrl }),
+      })
+      const data = await res.json()
+
+      if (!res.ok || !data.task_id) {
+        setConvertError(data.error || "Ошибка запуска конвертации")
+        setConverting(false)
+        return
+      }
+
+      const taskId = data.task_id
+      pollRef.current = setInterval(async () => {
+        const statusRes = await fetch(`${STL_STATUS_URL}?task_id=${taskId}`)
+        const statusData = await statusRes.json()
+
+        if (statusData.progress) setProgress(statusData.progress)
+
+        if (statusData.status === "succeeded" && statusData.stl_url) {
+          clearInterval(pollRef.current!)
+          setStlUrl(statusData.stl_url)
+          setConverting(false)
+          setProgress(100)
+        } else if (statusData.status === "failed") {
+          clearInterval(pollRef.current!)
+          setConvertError("Конвертация не удалась. Попробуйте другое фото.")
+          setConverting(false)
+        }
+      }, 3000)
+    }
+    reader.readAsDataURL(uploadedFile)
+  }, [uploadedFile])
 
   useEffect(() => {
     setDelays(titleWords.map(() => Math.random() * 0.07))
@@ -209,27 +266,53 @@ export const Hero3DWebGL = () => {
           />
 
           {uploadedFile ? (
-            <div className="flex items-center gap-4 bg-white/10 border border-red-500/60 backdrop-blur-sm rounded-2xl px-6 py-4">
-              <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0">
-                <Icon name="ImageIcon" size={20} className="text-red-400" />
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-4 bg-white/10 border border-red-500/60 backdrop-blur-sm rounded-2xl px-6 py-4">
+                <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                  <Icon name="ImageIcon" size={20} className="text-red-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-semibold text-sm truncate">{uploadedFile.name}</p>
+                  <p className="text-gray-400 text-xs mt-0.5">
+                    {converting ? `Конвертация... ${progress}%` : stlUrl ? "Готово! Скачайте STL-файл" : "Фото загружено — готово к конвертации"}
+                  </p>
+                </div>
+                {!converting && (
+                  <button
+                    onClick={() => { setUploadedFile(null); setStlUrl(null); setConvertError(null); if (fileInputRef.current) fileInputRef.current.value = "" }}
+                    className="text-gray-400 hover:text-white transition-colors flex-shrink-0"
+                  >
+                    <Icon name="X" size={18} />
+                  </button>
+                )}
+                {stlUrl ? (
+                  <a
+                    href={stlUrl}
+                    download="model.stl"
+                    className="bg-green-500 hover:bg-green-600 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors flex-shrink-0 flex items-center gap-2"
+                  >
+                    <Icon name="Download" size={16} />
+                    Скачать
+                  </a>
+                ) : (
+                  <button
+                    onClick={handleConvert}
+                    disabled={converting}
+                    className="bg-red-500 hover:bg-red-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors flex-shrink-0 flex items-center gap-2"
+                  >
+                    {converting ? <Icon name="Loader2" size={16} className="animate-spin" /> : <Icon name="Cpu" size={16} />}
+                    {converting ? "Обработка" : "В STL"}
+                  </button>
+                )}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-white font-semibold text-sm truncate">{uploadedFile.name}</p>
-                <p className="text-gray-400 text-xs mt-0.5">Фото загружено — готово к конвертации</p>
-              </div>
-              <button
-                onClick={() => { setUploadedFile(null); if (fileInputRef.current) fileInputRef.current.value = "" }}
-                className="text-gray-400 hover:text-white transition-colors flex-shrink-0"
-              >
-                <Icon name="X" size={18} />
-              </button>
-              <button
-                onClick={() => {}}
-                className="bg-red-500 hover:bg-red-600 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors flex-shrink-0 flex items-center gap-2"
-              >
-                <Icon name="Download" size={16} />
-                В STL
-              </button>
+              {converting && (
+                <div className="w-full bg-white/10 rounded-full h-1.5">
+                  <div className="bg-red-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
+                </div>
+              )}
+              {convertError && (
+                <p className="text-red-400 text-xs text-center">{convertError}</p>
+              )}
             </div>
           ) : (
             <div
